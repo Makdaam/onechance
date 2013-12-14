@@ -1,0 +1,24 @@
+[indentation]
+indent_width=4
+indent_type=0
+indent_hard_tab_width=8
+detect_indent=false
+detect_indent_width=false
+indent_mode=2
+
+[project]
+name=Ludum
+base_path=/home/lhx/projects/ld/
+description=
+
+[long line marker]
+long_line_behaviour=1
+long_line_column=72
+
+[files]
+current_page=1
+FILE_NAME_0=186;Sh;0;16;0;1;0;/home/lhx/projects/ld/build.sh;0;4
+FILE_NAME_1=4209;Lua;0;16;0;1;0;/home/lhx/projects/ld/onechance/main.lua;0;4
+
+[VTE]
+last_dir=/home/lhx/projects/neutron
