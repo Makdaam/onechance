@@ -10,6 +10,7 @@ local gravity = 0.01
 local pc = {}
 local Collider = {}
 local controls = {}
+colup = 1
 ship = {}
 trackedEntity = pc
 controls.vx = 0
@@ -26,6 +27,8 @@ pc.kills = 0
 pc.flipx = false
 pc.color = {255,255,255,255}
 pc.type = "player"
+pc.redkills = 0
+pc.bluekills = 0
 
 camera = {}
 camera.x = 0
@@ -50,6 +53,42 @@ Image = Proxy(function(k) return love.graphics.newImage('img/' .. k .. '.png') e
 pc.img = Image.player
 Entities = {pc}
 Projectiles = {}
+
+function entity(x,y,vx,vy,sx,sy,flipx,color,img,etype)
+    local e = {}
+    e.x = x
+    e.y = y
+    e.vx = vx
+    e.vy = vy
+    e.sx = sx
+    e.sy = sy
+    e.flipx = flipx
+    e.color = color
+    e.img = img
+    e.type = etype
+    e.gnd = 1000
+    e.col = Collider:addRectangle(e.x+(e.sx/2),e.y+ (e.sy/2),e.sx,e.sy)
+    e.col.parent = e
+    table.insert(Entities, e)
+    return e
+end
+
+function removeLiving(e)
+    Collider:remove(e.col)
+    if e.side == "red" then
+        pc.redkills = pc.redkills + 1
+    else
+        pc.bluekills = pc.bluekills + 1
+    end
+    pc.kills = pc.kills + 1
+end
+
+function setupCivilian(x,y, lx, rx, color)
+    local e = entity(x,y,0,0,32,32,false, color, Image.civilian, "civilian")
+    e.hp = 100
+    e.lx = lx
+    e.rx = rx
+end
 
 function fireBullet(x,y,vx,vy,ttl)
     ttl = ttl or 100
@@ -93,6 +132,16 @@ function updateProjectiles()
     end
 end
 
+function setupEntities()
+    for i=0,10 do
+        setupCivilian(100+math.random(2500),400,50,2900,{0,0,255})
+    end
+    for i=0,10 do
+        setupCivilian(4300+math.random(2500),400,4100,6900,{255,0,0})
+    end
+
+end
+
 function drawProjectiles()
     for i,p in pairs(Projectiles) do
         if p.type == "bullet" then
@@ -120,6 +169,7 @@ function map:draw()
     love.graphics.setColor(128+math.random(128),128+math.random(128),0,255)
     love.graphics.rectangle("fill",3000,580,1000,430)
 end
+
 
 local function drawHud()
     --HP
@@ -180,24 +230,6 @@ function camera:centerEntity(e)
     camera.x = 0.01*(e.x - camera.scx*400)+0.99*camera.x
 end
 
-function entity(x,y,vx,vy,sx,sy,flipx,color,img,etype)
-    local e = {}
-    e.x = x
-    e.y = y
-    e.vx = vx
-    e.vy = vy
-    e.sx = sx
-    e.sy = sy
-    e.flipx = flipx
-    e.color = color
-    e.img = img
-    e.type = etype
-    e.gnd = 1000
-    e.col = Collider:addRectangle(e.x+(e.sx/2),e.y+ (e.sy/2),e.sx,e.sy)
-    e.col.parent = e
-    table.insert(Entities, e)
-    return e
-end
 function play:enter()
     love.graphics.setBackgroundColor(0,128,255)
     Collider:clear()
@@ -212,6 +244,8 @@ function play:enter()
     ship.state = "gear"
     ship.hp = 400
     ship.enterable = false
+    
+    setupEntities()
 end
 
 function play:update()
@@ -225,6 +259,19 @@ function play:update()
             e.flipx = false
         elseif e.vx < 0 then
             e.flipx = true
+        end
+        if e.type == "civilian" then
+            if e.vx == 0 then
+                e.vx = math.random() - 0.5
+            else
+                if e.x > e.rx or e.x < e.lx then
+                    e.vx = -e.vx
+                end
+            end
+            if e.hp <= 0 then
+                removeLiving(e)
+                table.remove(Entities,i)
+            end
         end
     end
     if ship.up then
@@ -268,7 +315,11 @@ function play:update()
         end
     end
     --
-    Collider:update()
+    if colup <0 then
+        Collider:update()
+        colup = 10
+    end
+    colup = colup -1
     camera:centerEntity(trackedEntity)
 end
 
@@ -312,9 +363,9 @@ function play:keypressed(key, code)
     else
     --controlling ship
         if key =='left' then
-            controls.vx = -0.75
+            controls.vx = -1
         elseif key == 'right' then
-            controls.vx = 0.75
+            controls.vx = 1
         elseif key == 'up' and not ship.up then
             ship.up = true
             camera:scale(2,2)
@@ -329,16 +380,18 @@ function play:keypressed(key, code)
                 ship.img = Image.ship_gun
             end
             if ship.flipx then
-                fireBomb(ship.x+5,ship.y+65,ship.vx-1,1,500)
+                fireBomb(ship.x+5,ship.y+70,ship.vx-1,1,500)
             else
-                fireBomb(ship.x+105,ship.y+65,ship.vx+1,1,500)
+                fireBomb(ship.x+105,ship.y+70,ship.vx+1,1,500)
             end
         elseif key == 'e' then
                 trackedEntity = pc
                 ship.state = "gear"
                 ship.img = Image.ship_gear
-                ship.up = false
-                camera:scale(0.5,0.5)
+                if ship.up then
+                    ship.up = false
+                    camera:scale(0.5,0.5)
+                end
         end        
     end
 end
@@ -424,11 +477,11 @@ function on_collision(dt, shape_a, shape_b, mtv_x, mtv_y)
         fireBullet(b.x,b.y+2,0,0.1,50)
         fireBullet(b.x-2,b.y+2,-0.1,0.1,50)
     end
-    love.graphics.setBackgroundColor(255,0,0,255)
+    --love.graphics.setBackgroundColor(255,0,0,255)
 end
 
 function on_stopcollision(dt, shape_a, shape_b)
-    love.graphics.setBackgroundColor(64,128,255,255)
+    --love.graphics.setBackgroundColor(64,128,255,255)
     if shape_a.parent == map or shape_b.parent == map then
     --
     elseif shape_a.parent.type == "ship" and shape_b.parent.type == "player" then
