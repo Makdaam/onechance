@@ -313,9 +313,9 @@ function doShoot(side)
     for i,e in pairs(Entities) do
         if e.side == side then
             if e.type == "gun" then
-                if ((ship.x - e.x) * (ship.x - e.x)) + ((ship.y - e.y) * (ship.y - e.y)) < (500 * 500) then
+                if ((ship.x - e.x) * (ship.x - e.x)) + ((ship.y - e.y) * (ship.y - e.y)) < (800 * 800) then
                     local tn = getTan(e.x+(e.sx/2),e.y+(e.sy/2),ship.x, ship.y, 3)
-                    fireBullet(e.x+(e.sx/2),e.y+(e.sy/2), tn[1], tn[2],200)
+                    fireBullet(e.x+(e.sx/2),e.y+(e.sy/2), tn[1], tn[2],300)
                 end
             end
             if e.type == "guard" and ((pc.x - e.x) * (pc.x - e.x)) < (200 * 200) and ((pc.x - e.x) * (pc.x - e.x)) > (32 * 32) and pc.gnd < 100 then
@@ -447,13 +447,6 @@ local function drawHud()
     love.graphics.print(killstring, 6,6)
     love.graphics.setColor(255,255,0,255)
     love.graphics.print(killstring, 5,5)
-    love.graphics.print("GEN", 50,5)
-    if endConditions.blueGen then
-        love.graphics.print("BLUE", 150,5)
-    end
-    if endConditions.redGen then
-        love.graphics.print("RED", 250,5)
-    end
 
     --happiness
     love.graphics.setColor(0,0,64,128)
@@ -494,8 +487,17 @@ local function drawHud()
         local helper = -250*(pc.redkills/500)
         love.graphics.rectangle("fill",500,580,helper,10)
     end
+    love.graphics.setColor(0,0,0,64)
+    love.graphics.print("AGRESSIVE",368,571)
+    love.graphics.print("HAPPY",151,571)
+    love.graphics.print("HAPPY",601,571)
+    love.graphics.setColor(255,255,0,255)
+    love.graphics.rectangle("fill",300,575,2,20)
+    love.graphics.rectangle("fill",500,575,2,20)
+    love.graphics.print("AGRESSIVE",367,570)
+    love.graphics.print("HAPPY",150,570)
+    love.graphics.print("HAPPY",600,570)
     love.graphics.pop()
-    
 end
 
 
