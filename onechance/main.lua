@@ -18,6 +18,7 @@ endConditions.redGen = false
 endConditions.blueLike = false
 endConditions.redLike = false
 endConditions.first = true
+Achievs = {"Achievements"}
 lastshot = 1000
 colup = 1
 redshootcycle = 10000000000
@@ -99,11 +100,20 @@ end
 
 function removeLiving(e)
     Collider:remove(e.col)
+    if pc.kills == 0 then
+        table.insert(Achievs, "KILLER")
+    end
+    if e.type == "civilian" and pc.kills == 0 then
+        table.insert(Achievs, "WAR CRIMINAL")
+    end
     if e.type == "hut" then
         if e.side == "red" then
             endConditions.redHut = false
         else
             endConditions.blueHut = false
+        end
+        if not (endConditions.redHut or endConditions.blueHut) then
+            table.insert(Achievs, "HUT DESTROYER")
         end
     end
     if e.side == "red" then
@@ -178,6 +188,7 @@ function removeLiving(e)
     if e.type == "civilian" or e.type == "guard" then
         if e.side == "red" and pc.redkills >= 5 then
             endConditions.redGen = true
+            
             for i,c in pairs(Entities) do
                 if c.hp <=0 then
                     table.remove(Entities,i)
@@ -185,6 +196,9 @@ function removeLiving(e)
                 if (c.type =="civilian" or c.type == "guard") and c.side=="red" and c.hp > 0 then
                     endConditions.redGen = false
                 end
+            end
+            if endConditions.redGen then
+                table.insert(Achievs, "GENOCIDE")
             end
         elseif pc.bluekills >=5 then
             endConditions.blueGen = true
@@ -195,6 +209,9 @@ function removeLiving(e)
                 if (c.type =="civilian" or c.type == "guard") and c.side=="blue" and c.hp > 0 then
                     endConditions.blueGen = false
                 end
+            end
+            if endConditions.blueGen then
+                table.insert(Achievs, "GENOCIDE")
             end
         end
     end
@@ -498,8 +515,22 @@ local function drawHud()
     love.graphics.print("HAPPY",150,570)
     love.graphics.print("HAPPY",600,570)
     love.graphics.pop()
-end
 
+    -- achievements
+    local achievx = 700
+    local achievy = 0
+    for i,a in ipairs(Achievs) do
+        love.graphics.setColor(64,64,64,255)
+        love.graphics.rectangle("fill",achievx+1,achievy,100,14)
+        love.graphics.setColor(255,255,255,255)
+        love.graphics.rectangle("fill",achievx,achievy,1,14)
+        love.graphics.setColor(0,0,0,255)
+        love.graphics.rectangle("fill",achievx,achievy+14,100,1)
+        love.graphics.setColor(255,255,255,255)
+        love.graphics.print(a,achievx+4,achievy+1)
+        achievy = achievy + 18
+    end
+end
 
 function camera:set()
     love.graphics.push()
