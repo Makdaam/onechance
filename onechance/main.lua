@@ -7,9 +7,17 @@ local play = {}
 local highscore = {}
 local dbg = ""
 local gravity = 0.01
-local pc = {}
+pc = {}
 local Collider = {}
 local controls = {}
+endConditions = {}
+endConditions.blueHut = true
+endConditions.redHut = true
+endConditions.blueGen = false
+endConditions.redGen = false
+endConditions.blueLike = false
+endConditions.redLike = false
+endConditions.first = true
 lastshot = 1000
 colup = 1
 redshootcycle = 10000000000
@@ -35,6 +43,9 @@ pc.color = {255,255,255,255}
 pc.type = "player"
 pc.redkills = 0
 pc.bluekills = 0
+pc.interactions = 0
+pc.redint = 0
+pc.blueint = 0
 
 camera = {}
 camera.x = 0
@@ -88,9 +99,22 @@ end
 
 function removeLiving(e)
     Collider:remove(e.col)
+    if e.type == "hut" then
+        if e.side == "red" then
+            endConditions.redHut = false
+        else
+            endConditions.blueHut = false
+        end
+    end
     if e.side == "red" then
+        if pc.redkills < 0 then
+            pc.redkills = 0
+        end
         pc.redkills = pc.redkills + 1
     else
+        if pc.bluekills < 0 then
+            pc.bluekills = 0
+        end
         pc.bluekills = pc.bluekills + 1
     end
     
@@ -151,8 +175,29 @@ function removeLiving(e)
             redshootcycle = 20
         end
     end
-
-
+    if e.type == "civilian" or e.type == "guard" then
+        if e.side == "red" and pc.redkills >= 5 then
+            endConditions.redGen = true
+            for i,c in pairs(Entities) do
+                if c.hp <=0 then
+                    table.remove(Entities,i)
+                end
+                if (c.type =="civilian" or c.type == "guard") and c.side=="red" and c.hp > 0 then
+                    endConditions.redGen = false
+                end
+            end
+        elseif pc.bluekills >=5 then
+            endConditions.blueGen = true
+            for i,c in pairs(Entities) do
+                if c.hp <=0 then
+                    table.remove(Entities,i)
+                end
+                if (c.type =="civilian" or c.type == "guard") and c.side=="blue" and c.hp > 0 then
+                    endConditions.blueGen = false
+                end
+            end
+        end
+    end
     pc.kills = pc.kills + 1
 end
 
@@ -197,6 +242,19 @@ function setupGun(x, y, side)
     e.hp = 3000
 end
 
+function setupHut(x, y, side)
+    local e = entity(x,y,0,0,64,64,false, color, Image.house, "hut")
+    e.side = side
+    if side == "red" then
+        e.color = {255,0,0}
+    elseif side == "blue" then
+        e.color = {0,0,255}
+    end
+    Collider:addToGroup("alive",e.col)
+    Collider:addToGroup("bulletproof",e.col)
+    e.hp = 3000
+end
+
 function fireBullet(x,y,vx,vy,ttl)
     ttl = ttl or 100
     local p = {}
@@ -223,6 +281,18 @@ function smokeTrace(x,y,ttl)
     p.type = "smoke"
     table.insert(Projectiles,p)
 end
+
+function sparkle(x,y,ttl)
+    ttl = ttl or 100
+    local p = {}
+    p.x = x
+    p.y = y
+    p.vx = 0
+    p.vy = -0.1
+    p.ttl = ttl
+    p.type = "sparkle"
+    table.insert(Projectiles,p)
+end    
 
 function fireBomb(x,y,vx,vy,ttl)
     ttl = ttl or 1000
@@ -291,7 +361,7 @@ function updateProjectiles()
                 p.col:moveTo(p.x+1,p.y+1)
             end
         end
-        if smokecycle < 0 and p.type ~= "smoke" then
+        if smokecycle < 0 and p.type ~= "smoke" and p.type ~= "sparkle" then
             smokeTrace(p.x,p.y,100)
         end
     end        
@@ -313,7 +383,8 @@ function setupEntities()
         setupGun(100+math.random(2500),400,"blue")
         setupGun(4300+math.random(2500),400,"red")
     end
-    setupGun(200,400,"blue")
+    setupHut(200+math.random(1000),400,"blue")
+    setupHut(6800-math.random(1000),400,"red")
 end
 
 function drawProjectiles()
@@ -330,7 +401,10 @@ function drawProjectiles()
             love.graphics.setColor(0,0,0,64)
             love.graphics.rectangle("fill",p.x,p.y,5,5)
         end
-
+        if p.type == "sparkle" then
+            love.graphics.setColor(255,255,255,64)
+            love.graphics.rectangle("fill",p.x,p.y,7,5)
+        end
     end
 end
 
@@ -349,29 +423,77 @@ function map:draw()
     love.graphics.rectangle("fill",3000,580,1000,430)
 end
 
-
 local function drawHud()
     --HP
     love.graphics.push()
+    if pc.hp > 100 then
+        pc.hp = 100
+    end
     love.graphics.setColor(64,0,0,128)
     love.graphics.rectangle("fill",5,100,5,400)
     love.graphics.setColor(255,0,0,255)
     love.graphics.rectangle("fill",5,(100+(4*(100-pc.hp))),5,(4*pc.hp))
-    love.graphics.setColor(0,0,0,128)
     --SHIP
+    if ship.hp > 400 then
+        ship.hp = 400
+    end
     love.graphics.setColor(64,64,64,128)
     love.graphics.rectangle("fill",15,100,15,400)
     love.graphics.setColor(230,230,230,255)
     love.graphics.rectangle("fill",15,(100+(400-ship.hp)),15,(ship.hp))
-    love.graphics.setColor(0,0,0,128)
 
     local killstring = string.format("Kills %d",pc.kills)
+    love.graphics.setColor(0,0,0,128)
     love.graphics.print(killstring, 6,6)
     love.graphics.setColor(255,255,0,255)
     love.graphics.print(killstring, 5,5)
+    love.graphics.print("GEN", 50,5)
+    if endConditions.blueGen then
+        love.graphics.print("BLUE", 150,5)
+    end
+    if endConditions.redGen then
+        love.graphics.print("RED", 250,5)
+    end
 
-    love.graphics.print(blueshootcycle, 400, 5)
-
+    --happiness
+    love.graphics.setColor(0,0,64,128)
+    love.graphics.rectangle("fill",50,580,300,10)
+    love.graphics.setColor(0,0,255,255)
+    if pc.bluekills>0 then
+        local helper
+        if pc.bluekills>15 then
+            helper = 15
+        else
+            helper = pc.bluekills
+        end
+        love.graphics.rectangle("fill",300,580,50*(helper/15),10)
+    else
+        if pc.bluekills<-500 then
+            endConditions.blueLike = true
+            pc.bluekills = -500
+        end
+        local helper = -250*(pc.bluekills/500)
+        love.graphics.rectangle("fill",300-helper,580,helper,10)
+    end
+    love.graphics.setColor(64,0,0,128)
+    love.graphics.rectangle("fill",450,580,300,10)
+    love.graphics.setColor(255,0,0,255)
+    if pc.redkills>0 then
+        local helper
+        if pc.redkills>15 then
+            helper = 15
+        else
+            helper = pc.redkills
+        end
+        love.graphics.rectangle("fill",500-(50*helper/15),580,50*(helper/15),10)
+    else
+        if pc.redkills<-500 then
+            endConditions.redLike = true
+            pc.redkills = -500
+        end
+        local helper = -250*(pc.redkills/500)
+        love.graphics.rectangle("fill",500,580,helper,10)
+    end
     love.graphics.pop()
     
 end
@@ -413,7 +535,35 @@ function camera:centerEntity(e)
     camera.x = 0.01*(e.x - camera.scx*400)+0.99*camera.x
 end
 
+function checkEndstate()
+    if not endConditions.redHut and pc.bluekills <= 0 then
+        --mission
+        Gamestate.switch(gameover)
+    elseif not endConditions.blueHut and pc.redkills <= 0 then
+        --traitor
+        Gamestate.switch(gameover)
+    elseif endConditions.redGen and endConditions.blueGen then
+        --extermination
+        Gamestate.switch(gameover)
+    elseif endConditions.blueLike or endConditions.redLike then
+        --reelection
+        Gamestate.switch(gameover)
+    elseif pc.y>1000 or pc.hp <= 0 then
+        --death
+        Gamestate.switch(gameover)
+    elseif pc.x<-1000 or pc.x> 8000 then
+        --left
+        Gamestate.switch(gameover)
+    end
+end
+
 function play:enter()
+    if love.filesystem.exists("state.lua") then
+        local state = love.filesystem.load("state.lua")
+        state()
+        Gamestate.switch(gameover)
+    end
+
     love.graphics.setBackgroundColor(0,128,255)
     Collider:clear()
     --add colliders
@@ -455,7 +605,7 @@ function play:update()
             end
         end
                 
-        if e.type == "civilian" or e.type == "gun" or e.type == "guard" then
+        if e.type == "civilian" or e.type == "gun" or e.type == "guard" or e.type=="hut" then
             if e.hp <= 0 then
                 removeLiving(e)
                 table.remove(Entities,i)
@@ -491,9 +641,6 @@ function play:update()
         ship.enterable = false
         trackedEntity = pc
     end
-    if pc.y>1000 or pc.hp <= 0 then
-        Gamestate.switch(gameover)
-    end
     updateProjectiles()
     
     if pc.gnd < 20 then
@@ -526,6 +673,7 @@ function play:update()
         doShoot("blue")
     end;
     blueshootcycle = blueshootcycle -1
+    checkEndstate()
 end
 
 function play:draw()
@@ -534,7 +682,6 @@ function play:draw()
     for i,e in pairs(Entities) do
         if e.type == "gun" then
             local tn = getTan(e.x+(e.sx/2), e.y+(e.sy/2), ship.x+(ship.sx/2), ship.y+(ship.sy/2),32)
-            print (tn[1], tn[2])
             love.graphics.setColor(0,0,0,255)
             love.graphics.line(e.x+(e.sx/2), e.y+(e.sy/2),e.x+(e.sx/2) + tn[1], e.y+(e.sy/2) + tn[2])
         end
@@ -560,7 +707,7 @@ function play:keypressed(key, code)
         elseif key == 'up' and pc.gnd < 100 then
             pc.vy = - 1.5
         elseif key == ' ' then
-            if lastshot > 50 then
+            if true or lastshot > 50 then
                 if pc.flipx then
                     fireBullet(pc.x-4,pc.y+13,pc.vx-1,0,100)
                 else
@@ -572,6 +719,18 @@ function play:keypressed(key, code)
             if ship.enterable then
                 trackedEntity = ship
             end
+        elseif key == 'd' then
+            if pc.interactions > 0 then
+                sparkle(pc.x+(pc.sx/2),pc.y,100)
+                if pc.hp < 100 then
+                    pc.hp = pc.hp + 5 - (0.1 * pc.redint * pc.redkills) - (0.1 * pc.blueint * pc.bluekills)
+                elseif ship.hp < 400 then
+                    ship.hp = ship.hp + 5 - (0.1 * pc.redint * pc.redkills) - (0.1 * pc.blueint * pc.bluekills)
+                else
+                    pc.redkills = pc.redkills - (0.25 * pc.redint)
+                    pc.bluekills = pc.bluekills - (0.25 * pc.blueint)
+                end
+            end
         end
     else
     --controlling ship
@@ -581,11 +740,13 @@ function play:keypressed(key, code)
             controls.vx = 3
         elseif key == 'up' and not ship.up then
             ship.up = true
+            camera.x = camera.x - 400
+            camera.y = camera.y - 300
             camera:scale(2,2)
-            camera.x = camera.x - 100
-            camera.y = camera.y - 200
         elseif key == 'down' and ship.up then
             ship.up = false
+            camera.x = camera.x + 200
+            camera.y = camera.y + 150
             camera:scale(0.5,0.5)
         elseif key == ' ' then
             if lastshot > 150 then
@@ -621,14 +782,44 @@ function play:keyreleased(key, code)
 end
 
 function menu:draw()
-    love.graphics.print("Press space to start", 400, 300)
-    love.graphics.print(dbg, 400, 200)
+    love.graphics.draw(Image.logo,150,10)
+    love.graphics.setColor(0,0,255,255)
+    love.graphics.rectangle("fill",615,110,55,30)
+    love.graphics.setColor(255,0,0,255)
+    love.graphics.rectangle("fill",480,140,55,30)
+    love.graphics.setColor(255,255,255,255)
+    love.graphics.print("You are a mercenary, just employed by the blue boss.", 70, 110,0,2,2)
+    love.graphics.print("He asks you to destroy the red boss's Hut.", 140, 140,0,2,2)
+    love.graphics.print("There are several solutions to this situation, you only get one.", 10, 170,0,2,2)
+    love.graphics.setColor(255,255,0,255)
+    love.graphics.print("Think before you shoot!", 260, 200,0,2,2)
+    love.graphics.setColor(255,255,255,255)
+
+    love.graphics.translate(0,50)
+    love.graphics.setBackgroundColor(128,128,128,255)
+    love.graphics.draw(Image.spacebar,110,400)
+    love.graphics.print("FIRE / Start game", 260, 500,0,2,2)
+    love.graphics.draw(Image.key_e,30,200)
+    love.graphics.draw(Image.key_d,80,270)
+    love.graphics.print("Enter/Exit ship", 130, 240,0,2,2)
+    love.graphics.print("Interact with civilians", 190, 310,0,2,2)
+    love.graphics.print("to get HP etc.", 220, 340,0,2,2)
+    
+    local keyx = 500
+    local keyy = 270
+    love.graphics.draw(Image.key_up,keyx+95,keyy-70)
+    love.graphics.draw(Image.key_left,keyx,keyy)
+    love.graphics.draw(Image.key_down,keyx+100,keyy)
+    love.graphics.draw(Image.key_right,keyx+200,keyy)
+    love.graphics.print("MOVE", keyx+110, keyy+100,0,2,2)
+
 end
 
 function menu:keyreleased(key, code)
-    dbg = key
     if key == ' ' then
         Gamestate.switch(play)
+    elseif key == 'q' then
+        Gamestate.switch(gameover)
     end
 end
 
@@ -660,6 +851,20 @@ function on_collision(dt, shape_a, shape_b, mtv_x, mtv_y)
         ship.enterable = true
     elseif shape_b.parent.type == "ship" and shape_a.parent.type == "player" then
         ship.enterable = true
+    elseif shape_a.parent.type == "civilian" and shape_b.parent.type == "player" then
+        pc.interactions = pc.interactions + 1
+        if shape_a.parent.side == "red" then
+            pc.redint = pc.redint + 1
+        else
+            pc.blueint = pc.blueint + 1
+        end
+    elseif shape_b.parent.type == "civilian" and shape_a.parent.type == "player" then
+        pc.interactions = pc.interactions + 1
+        if shape_b.parent.side == "red" then
+            pc.redint = pc.redint + 1
+        else
+            pc.blueint = pc.blueint + 1
+        end
     end
     
     if t == 'ground' then
@@ -698,11 +903,59 @@ function on_stopcollision(dt, shape_a, shape_b)
         ship.enterable = false
     elseif shape_b.parent.type == "ship" and shape_a.parent.type == "player" then
         ship.enterable = false
+    elseif shape_a.parent.type == "civilian" and shape_b.parent.type == "player" then
+        pc.redint = 0
+        pc.blueint = 0
+        pc.interactions = 0
+    elseif shape_b.parent.type == "civilian" and shape_a.parent.type == "player" then
+        pc.redint = 0
+        pc.blueint = 0
+        pc.interactions = 0
     end
 end
 
 function gameover:draw()
-    love.graphics.print("Game Over",400,300)
+    love.graphics.setBackgroundColor(128,128,128,255)
+    love.graphics.setColor(255,255,0,255)
+    if endConditions.first then
+        love.graphics.print("Game Over",220,100,0,5,5)
+    else
+        love.graphics.print("You played already!",100,100,0,5,5)
+    end
+    
+    love.graphics.setColor(255,255,255,255)
+    if not endConditions.redHut and pc.bluekills <= 0 then
+        --mission
+        love.graphics.print("You killed the red boss.",40,300,0,5,5)
+        love.graphics.print("The default ending.",100,400,0,5,5)
+    elseif not endConditions.blueHut and pc.redkills <= 0 then
+        --traitor
+        love.graphics.print("You killed the blue boss.",30,300,0,5,5)
+        love.graphics.print("You traitor!",220,400,0,5,5)
+    elseif endConditions.redGen and endConditions.blueGen then
+        --extermination
+        love.graphics.print("You killed everyone!",70,300,0,5,5)
+        love.graphics.print("Proud of yourself?",100,400,0,5,5)
+    elseif endConditions.blueLike or endConditions.redLike then
+        --reelection
+        love.graphics.print("Everyone likes you!",90,200,0,5,5)
+        love.graphics.print("You're the new boss!",70,300,0,5,5)
+        love.graphics.print("There's no need to fight.",30,400,0,5,5)
+    elseif pc.y>1000 or pc.hp <= 0 then
+        --death
+        love.graphics.print("You have died!",170,300,0,5,5)
+    elseif pc.x<-1000 or pc.x> 8000 then
+        --left
+        love.graphics.print("You left",270,300,0,5,5)
+        if pc.kills == 0 then
+            love.graphics.print("instead of killing.",160,400,0,5,5)
+        else
+            love.graphics.print("the battlefield",170,400,0,5,5)
+        end
+    else
+        love.graphics.print("How did you get here?",60,300,0,5,5)
+        love.graphics.print("You cheater!",200,400,0,5,5)        
+    end
 end
 
 function gameover:update()
@@ -711,6 +964,20 @@ end
 
 function gameover:enter()
     Entities = {}
+    local output = string.format([[
+    endConditions.blueHut = %s
+    endConditions.redHut = %s
+    endConditions.blueGen = %s
+    endConditions.redGen = %s
+    endConditions.blueLike = %s
+    endConditions.redLike = %s
+    endConditions.first = false
+    pc.hp = %d
+    pc.x = %d
+    ]],tostring(endConditions.blueHut),tostring(endConditions.redHut),tostring(endConditions.blueGen),tostring(endConditions.redGen),tostring(endConditions.blueLike),
+    tostring(endConditions.redLike),pc.hp,pc.x*2)
+ 
+    love.filesystem.write("state.lua", output)
     -- do saving here
 end
 
