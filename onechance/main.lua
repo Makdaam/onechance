@@ -1,5 +1,6 @@
 Gamestate = require "hump.gamestate"
 HC = require "HardonCollider"
+require 'slam'
 
 local gameover = {}
 local menu = {}
@@ -75,6 +76,7 @@ local function Proxy(f)
 end
 
 Image = Proxy(function(k) return love.graphics.newImage('img/' .. k .. '.png') end)
+Sound = Proxy(function(k) return love.audio.newSource('snd/' .. k .. '.wav', 'static') end)
 pc.img = Image.player
 Entities = {pc}
 Projectiles = {}
@@ -107,6 +109,7 @@ function removeLiving(e)
         table.insert(Achievs, "WAR CRIMINAL")
     end
     if e.type == "hut" then
+        Sound.bigboom:play()
         if e.side == "red" then
             endConditions.redHut = false
         else
@@ -115,6 +118,8 @@ function removeLiving(e)
         if not (endConditions.redHut or endConditions.blueHut) then
             table.insert(Achievs, "HUT DESTROYER")
         end
+    elseif e.type == "gun" then
+        Sound.bigboom:play()
     end
     if e.side == "red" then
         if pc.redkills < 0 then
@@ -186,6 +191,7 @@ function removeLiving(e)
         end
     end
     if e.type == "civilian" or e.type == "guard" then
+        Sound.death:play()
         if e.side == "red" and pc.redkills >= 5 then
             endConditions.redGen = true
             
@@ -285,6 +291,8 @@ function fireBullet(x,y,vx,vy,ttl)
     p.col.parent = p
     Collider:addToGroup("bulletproof",p.col)
     table.insert(Projectiles,p)
+    Sound.shot1:setVolume(0.3)
+    Sound.shot1:play()
 end
 
 function smokeTrace(x,y,ttl)
@@ -323,6 +331,7 @@ function fireBomb(x,y,vx,vy,ttl)
     p.col = Collider:addRectangle(p.x,p.y,3,3)
     p.col.parent = p
     table.insert(Projectiles,p)
+    Sound.shot_low:play()
 end
 
 
@@ -426,6 +435,17 @@ function drawProjectiles()
 end
 
 function map:setupColliders()
+--function entity(x,y,vx,vy,sx,sy,flipx,color,img,etype)
+    clouds = {}
+    for i = 1,500 do
+        c = {}
+        c.x = -1000+math.random(9000)
+        c.y = math.random(1000)
+        c.color = {200+math.random(55),200+math.random(55),200+math.random(55),255}
+        c.img = Image.cloud
+        table.insert(clouds,c)
+    end
+
     map.colliders = {Collider:addRectangle(0,550,3000,500),Collider:addRectangle(4000,550,3000,500)}
     for i,c in pairs(map.colliders) do
         c.parent = map
@@ -583,9 +603,11 @@ function checkEndstate()
         Gamestate.switch(gameover)
     elseif pc.y>1000 or pc.hp <= 0 then
         --death
+        Sound.death:play()
         Gamestate.switch(gameover)
     elseif pc.x<-1000 or pc.x> 8000 then
         --left
+        Sound.flyaway:play()
         Gamestate.switch(gameover)
     end
 end
@@ -618,7 +640,9 @@ end
 function play:update()
     lastshot = lastshot + 1
     for i, e in pairs(Entities) do
-        e.vy = e.vy + gravity
+        if e.type~="scenery" then
+            e.vy = e.vy + gravity
+        end
         e.x = e.x + e.vx
         e.y = e.y + e.vy
         e.col:moveTo(e.x+(e.sx/2),e.y+(e.sy/2))
@@ -755,6 +779,7 @@ function play:keypressed(key, code)
         elseif key == 'd' then
             if pc.interactions > 0 then
                 sparkle(pc.x+(pc.sx/2),pc.y,100)
+                Sound.bzzt:play()
                 if pc.hp < 100 then
                     pc.hp = pc.hp + 5 - (0.1 * pc.redint * pc.redkills) - (0.1 * pc.blueint * pc.bluekills)
                 elseif ship.hp < 400 then
@@ -914,6 +939,7 @@ function on_collision(dt, shape_a, shape_b, mtv_x, mtv_y)
     elseif t == 'bullet' then
         if e.hp then
             --an entity with health that we can decrement, yay!
+            Sound.hit:play()
             e.hp = e.hp-20
             b.ttl = 0
         end
@@ -921,6 +947,7 @@ function on_collision(dt, shape_a, shape_b, mtv_x, mtv_y)
         if e.hp then
             e.hp = e.hp - 1000
             b.ttl = 0
+            Sound.boom:play()
         end
         fireBullet(b.x-2,b.y,-0.2,0,200)
         fireBullet(b.x+2,b.y,0.2,0,200)
