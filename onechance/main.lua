@@ -895,7 +895,8 @@ function menu:keyreleased(key, code)
     if key == ' ' then
         Gamestate.switch(play)
     elseif key == 'q' then
-        Gamestate.switch(gameover)
+        love.filesystem.remove("state.lua")
+        Gamestate.switch(play)
     end
 end
 
